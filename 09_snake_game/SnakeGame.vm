@@ -1,0 +1,644 @@
+function SnakeGame.new 0
+push constant 6
+call Memory.alloc 1
+pop pointer 0
+push constant 0
+pop this 3
+push constant 16
+pop this 0
+push constant 300
+pop this 1
+push constant 192
+push constant 128
+push this 0
+push constant 4
+call Block.new 4
+push constant 0
+call BlockList.new 2
+pop this 2
+push constant 208
+push constant 128
+push this 0
+push constant 4
+call Block.new 4
+push this 2
+call BlockList.new 2
+pop this 2
+push constant 224
+push constant 128
+push this 0
+push constant 4
+call Block.new 4
+push this 2
+call BlockList.new 2
+pop this 2
+push constant 240
+push constant 128
+push this 0
+push constant 4
+call Block.new 4
+push this 2
+call BlockList.new 2
+pop this 2
+push constant 256
+push constant 128
+push this 0
+push constant 4
+call Block.new 4
+push this 2
+call BlockList.new 2
+pop this 2
+push constant 100
+call Random.setSeed 1
+pop temp 0
+push constant 64
+push constant 64
+push constant 6
+call Apple.new 3
+pop this 4
+push pointer 0
+return
+function SnakeGame.dispose 0
+push argument 0
+pop pointer 0
+push this 2
+call BlockList.dispose 1
+pop temp 0
+push this 4
+call Apple.dispose 1
+pop temp 0
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+push constant 0
+return
+function SnakeGame.draw 0
+push argument 0
+pop pointer 0
+push this 2
+call BlockList.draw 1
+pop temp 0
+push this 4
+call Apple.draw 1
+pop temp 0
+push constant 0
+return
+function SnakeGame.erase 0
+push argument 0
+pop pointer 0
+push this 2
+call BlockList.erase 1
+pop temp 0
+push this 4
+call Apple.erase 1
+pop temp 0
+push constant 0
+return
+function SnakeGame.isEaten 3
+push argument 0
+pop pointer 0
+push this 2
+call BlockList.getCur 1
+pop local 0
+push local 0
+call Block.getX 1
+pop local 1
+push local 0
+call Block.getY 1
+pop local 2
+push argument 1
+push constant 1
+eq
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push local 2
+push this 0
+sub
+pop local 2
+label IF_FALSE0
+push argument 1
+push constant 2
+eq
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push local 2
+push this 0
+add
+pop local 2
+label IF_FALSE1
+push argument 1
+push constant 3
+eq
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push local 1
+push this 0
+sub
+pop local 1
+label IF_FALSE2
+push argument 1
+push constant 4
+eq
+if-goto IF_TRUE3
+goto IF_FALSE3
+label IF_TRUE3
+push local 1
+push this 0
+add
+pop local 1
+label IF_FALSE3
+push this 4
+push local 1
+push local 2
+call Apple.isCollision 3
+if-goto IF_TRUE4
+goto IF_FALSE4
+label IF_TRUE4
+push constant 0
+not
+return
+goto IF_END4
+label IF_FALSE4
+push constant 0
+return
+label IF_END4
+function SnakeGame.generateNewApple 5
+push argument 0
+pop pointer 0
+push constant 0
+pop local 2
+label WHILE_EXP0
+push local 2
+not
+not
+if-goto WHILE_END0
+push constant 0
+not
+pop local 2
+push constant 31
+call Random.randRange 1
+push this 0
+call Math.multiply 2
+pop local 0
+push constant 15
+call Random.randRange 1
+push this 0
+call Math.multiply 2
+pop local 1
+push this 2
+pop local 3
+label WHILE_EXP1
+push local 3
+push constant 0
+eq
+not
+not
+if-goto WHILE_END1
+push local 3
+call BlockList.getCur 1
+pop local 4
+push local 4
+push local 0
+push local 1
+call Block.isCollision 3
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push constant 0
+pop local 2
+label IF_FALSE0
+push local 3
+call BlockList.getRest 1
+pop local 3
+goto WHILE_EXP1
+label WHILE_END1
+goto WHILE_EXP0
+label WHILE_END0
+push local 0
+push local 1
+push constant 6
+call Apple.new 3
+pop this 4
+push constant 0
+return
+function SnakeGame.isGameOver 4
+push argument 0
+pop pointer 0
+push this 2
+call BlockList.getCur 1
+pop local 2
+push local 2
+call Block.getX 1
+pop local 0
+push local 2
+call Block.getY 1
+pop local 1
+push argument 1
+push constant 1
+eq
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push local 1
+push this 0
+sub
+pop local 1
+label IF_FALSE0
+push argument 1
+push constant 2
+eq
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push local 1
+push this 0
+add
+pop local 1
+label IF_FALSE1
+push argument 1
+push constant 3
+eq
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push local 0
+push this 0
+sub
+pop local 0
+label IF_FALSE2
+push argument 1
+push constant 4
+eq
+if-goto IF_TRUE3
+goto IF_FALSE3
+label IF_TRUE3
+push local 0
+push this 0
+add
+pop local 0
+label IF_FALSE3
+push this 2
+pop local 3
+label WHILE_EXP0
+push local 3
+push constant 0
+eq
+not
+not
+if-goto WHILE_END0
+push local 3
+call BlockList.getCur 1
+pop local 2
+push local 2
+push local 0
+push local 1
+call Block.isCollision 3
+if-goto IF_TRUE4
+goto IF_FALSE4
+label IF_TRUE4
+push constant 0
+not
+pop this 3
+push constant 0
+not
+return
+label IF_FALSE4
+push local 3
+call BlockList.getRest 1
+pop local 3
+goto WHILE_EXP0
+label WHILE_END0
+push local 1
+push constant 0
+lt
+if-goto IF_TRUE5
+goto IF_FALSE5
+label IF_TRUE5
+push constant 0
+not
+pop this 3
+push constant 0
+not
+return
+label IF_FALSE5
+push local 1
+push constant 255
+gt
+if-goto IF_TRUE6
+goto IF_FALSE6
+label IF_TRUE6
+push constant 0
+not
+pop this 3
+push constant 0
+not
+return
+label IF_FALSE6
+push local 0
+push constant 0
+lt
+if-goto IF_TRUE7
+goto IF_FALSE7
+label IF_TRUE7
+push constant 0
+not
+pop this 3
+push constant 0
+not
+return
+label IF_FALSE7
+push local 0
+push constant 511
+gt
+if-goto IF_TRUE8
+goto IF_FALSE8
+label IF_TRUE8
+push constant 0
+not
+pop this 3
+push constant 0
+not
+return
+label IF_FALSE8
+push constant 0
+return
+function SnakeGame.updateGameFrame 7
+push argument 0
+pop pointer 0
+push pointer 0
+push argument 1
+call SnakeGame.isGameOver 2
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push constant 0
+return
+label IF_FALSE0
+push this 2
+call BlockList.erase 1
+pop temp 0
+push pointer 0
+push argument 1
+call SnakeGame.isEaten 2
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push this 4
+call Apple.getX 1
+push this 4
+call Apple.getY 1
+push this 0
+push argument 1
+call Block.new 4
+push this 2
+call BlockList.new 2
+pop this 2
+push this 4
+call Apple.erase 1
+pop temp 0
+push this 4
+call Apple.dispose 1
+pop temp 0
+push pointer 0
+call SnakeGame.generateNewApple 1
+pop temp 0
+goto IF_END1
+label IF_FALSE1
+push this 2
+pop local 2
+push argument 1
+pop local 0
+label WHILE_EXP0
+push local 2
+push constant 0
+eq
+not
+not
+if-goto WHILE_END0
+push local 2
+call BlockList.getCur 1
+pop local 4
+push local 4
+call Block.getDirection 1
+pop local 1
+push local 4
+push local 0
+call Block.setDirection 2
+pop temp 0
+push local 4
+call Block.moveAlongDirection 1
+pop temp 0
+push local 1
+pop local 0
+push local 2
+call BlockList.getRest 1
+push constant 0
+eq
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push local 2
+pop local 3
+label IF_FALSE2
+push local 2
+call BlockList.getRest 1
+pop local 2
+goto WHILE_EXP0
+label WHILE_END0
+label IF_END1
+push pointer 0
+call SnakeGame.draw 1
+pop temp 0
+push constant 0
+return
+function SnakeGame.run 6
+push argument 0
+pop pointer 0
+push constant 0
+pop local 4
+push constant 0
+pop local 2
+label WHILE_EXP0
+push local 2
+not
+push this 3
+not
+and
+not
+if-goto WHILE_END0
+label WHILE_EXP1
+push local 0
+push constant 0
+eq
+push this 3
+not
+and
+not
+if-goto WHILE_END1
+call Keyboard.keyPressed 0
+pop local 0
+push local 4
+push constant 5
+add
+pop local 4
+push local 4
+push this 1
+gt
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push constant 0
+pop local 4
+push this 2
+call BlockList.getCur 1
+pop local 3
+push pointer 0
+push local 3
+call Block.getDirection 1
+call SnakeGame.updateGameFrame 2
+pop temp 0
+label IF_FALSE0
+push constant 5
+call Sys.wait 1
+pop temp 0
+goto WHILE_EXP1
+label WHILE_END1
+push constant 0
+pop local 4
+push local 0
+push constant 81
+eq
+if-goto IF_TRUE1
+goto IF_FALSE1
+label IF_TRUE1
+push constant 0
+not
+pop local 2
+label IF_FALSE1
+push local 0
+push constant 131
+eq
+if-goto IF_TRUE2
+goto IF_FALSE2
+label IF_TRUE2
+push constant 1
+pop local 1
+label IF_FALSE2
+push local 0
+push constant 133
+eq
+if-goto IF_TRUE3
+goto IF_FALSE3
+label IF_TRUE3
+push constant 2
+pop local 1
+label IF_FALSE3
+push local 0
+push constant 130
+eq
+if-goto IF_TRUE4
+goto IF_FALSE4
+label IF_TRUE4
+push constant 3
+pop local 1
+label IF_FALSE4
+push local 0
+push constant 132
+eq
+if-goto IF_TRUE5
+goto IF_FALSE5
+label IF_TRUE5
+push constant 4
+pop local 1
+label IF_FALSE5
+label WHILE_EXP2
+push local 0
+push constant 0
+eq
+not
+not
+if-goto WHILE_END2
+call Keyboard.keyPressed 0
+pop local 0
+push constant 5
+call Sys.wait 1
+pop temp 0
+goto WHILE_EXP2
+label WHILE_END2
+push this 2
+call BlockList.getCur 1
+pop local 3
+push local 3
+call Block.getDirection 1
+pop local 5
+push local 1
+push constant 1
+eq
+push local 5
+push constant 2
+eq
+not
+and
+if-goto IF_TRUE6
+goto IF_FALSE6
+label IF_TRUE6
+push pointer 0
+push local 1
+call SnakeGame.updateGameFrame 2
+pop temp 0
+label IF_FALSE6
+push local 1
+push constant 2
+eq
+push local 5
+push constant 1
+eq
+not
+and
+if-goto IF_TRUE7
+goto IF_FALSE7
+label IF_TRUE7
+push pointer 0
+push local 1
+call SnakeGame.updateGameFrame 2
+pop temp 0
+label IF_FALSE7
+push local 1
+push constant 3
+eq
+push local 5
+push constant 4
+eq
+not
+and
+if-goto IF_TRUE8
+goto IF_FALSE8
+label IF_TRUE8
+push pointer 0
+push local 1
+call SnakeGame.updateGameFrame 2
+pop temp 0
+label IF_FALSE8
+push local 1
+push constant 4
+eq
+push local 5
+push constant 3
+eq
+not
+and
+if-goto IF_TRUE9
+goto IF_FALSE9
+label IF_TRUE9
+push pointer 0
+push local 1
+call SnakeGame.updateGameFrame 2
+pop temp 0
+label IF_FALSE9
+goto WHILE_EXP0
+label WHILE_END0
+push constant 0
+return

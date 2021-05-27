@@ -1,0 +1,4 @@
+build/
+googletest/
+__pycache__/
+*.pyc

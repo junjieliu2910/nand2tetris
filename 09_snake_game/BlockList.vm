@@ -1,0 +1,108 @@
+function BlockList.new 0
+push constant 2
+call Memory.alloc 1
+pop pointer 0
+push argument 0
+pop this 0
+push argument 1
+pop this 1
+push pointer 0
+return
+function BlockList.dispose 0
+push argument 0
+pop pointer 0
+push this 1
+push constant 0
+eq
+not
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 1
+call BlockList.dispose 1
+pop temp 0
+label IF_FALSE0
+push pointer 0
+call Memory.deAlloc 1
+pop temp 0
+push constant 0
+return
+function BlockList.getCur 0
+push argument 0
+pop pointer 0
+push this 0
+return
+function BlockList.getRest 0
+push argument 0
+pop pointer 0
+push this 1
+return
+function BlockList.setRest 0
+push argument 0
+pop pointer 0
+push argument 1
+pop this 1
+push constant 0
+return
+function BlockList.draw 0
+push argument 0
+pop pointer 0
+push this 1
+push constant 0
+eq
+not
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 1
+call BlockList.draw 1
+pop temp 0
+label IF_FALSE0
+push this 0
+call Block.draw 1
+pop temp 0
+push constant 0
+return
+function BlockList.erase 0
+push argument 0
+pop pointer 0
+push this 1
+push constant 0
+eq
+not
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 1
+call BlockList.erase 1
+pop temp 0
+label IF_FALSE0
+push this 0
+call Block.erase 1
+pop temp 0
+push constant 0
+return
+function BlockList.updateMoveDirection 1
+push argument 0
+pop pointer 0
+push this 0
+call Block.getDirection 1
+pop local 0
+push this 0
+push argument 1
+call Block.setDirection 2
+pop temp 0
+push this 1
+push constant 0
+eq
+not
+if-goto IF_TRUE0
+goto IF_FALSE0
+label IF_TRUE0
+push this 1
+push local 0
+call BlockList.updateMoveDirection 2
+pop temp 0
+label IF_FALSE0
+push constant 0
+return

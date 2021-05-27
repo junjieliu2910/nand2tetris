@@ -1,0 +1,57 @@
+class BlockList{
+    field Block cur;
+    field BlockList rest;
+
+    constructor BlockList new(Block cur_block, BlockList rest_list){
+        let cur = cur_block;
+        let rest = rest_list;
+        return this;
+    }
+
+    method void dispose(){
+        if(~(rest=null)){
+            do rest.dispose();
+        }
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    method Block getCur(){
+        return cur;
+    }
+
+    method BlockList getRest(){
+        return rest;
+    }
+
+    method void setRest(BlockList r){
+        let rest = r;
+        return;
+    }
+
+    method void draw(){
+        if(~(rest=null)){
+            do rest.draw();
+        }
+        do cur.draw();
+        return;
+    }
+
+    method void erase(){
+        if(~(rest=null)){
+            do rest.erase();
+        }
+        do cur.erase();
+        return;
+    }
+
+    method void updateMoveDirection(int prev_dir){
+        var int tmp;
+        let tmp = cur.getDirection();
+        do cur.setDirection(prev_dir);
+        if(~(rest=null)){
+            do rest.updateMoveDirection(tmp);
+        }
+        return;
+    }
+}

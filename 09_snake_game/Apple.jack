@@ -1,0 +1,49 @@
+class Apple{
+    field int x, y;
+    field int radius;
+
+    constructor Apple new(int ax, int ay, int r){
+        let x = ax;
+        let y = ay;
+        let radius = r;
+        return this;
+    }
+
+    method void dispose(){
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    method void draw(){
+        do Screen.setColor(true);
+        do Screen.drawCircle(x+radius+1, y+radius+1, radius);
+        return;
+    }
+
+    method void erase(){
+        do Screen.setColor(false);
+        do Screen.drawCircle(x+radius, y+radius, radius);
+        return; 
+    }
+        
+    method boolean isCollision(int ax, int ay){
+        // Check whether two block are overllaped
+        var int size;
+        let size = 2*radius;
+        if(((x+size) < (ax+1)) | ((x+1) > (ax+size))){
+            return false;
+        } 
+        if(((y+size) < (ay+1)) | ((y+1) > (ay+size))){
+            return false;
+        } 
+        return true;
+    }
+
+    method int getX(){
+        return x;
+    }
+
+    method int getY(){
+        return y;
+    }
+}

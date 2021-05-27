@@ -1,0 +1,221 @@
+class SnakeGame{
+    field int block_size;
+    field int frame_delay;
+    field BlockList head;
+    field boolean game_over;
+    field Apple apple;
+    field Random rand;
+
+    constructor SnakeGame new(){
+        //create a block list with 5 default block
+        let game_over = false;
+        let block_size = 16;
+        let frame_delay = 300;
+        let head = BlockList.new(Block.new(192, 128, block_size, 4), null);
+        let head = BlockList.new(Block.new(208, 128, block_size, 4), head);
+        let head = BlockList.new(Block.new(224, 128, block_size, 4), head);
+        let head = BlockList.new(Block.new(240, 128, block_size, 4), head);
+        let head = BlockList.new(Block.new(256, 128, block_size, 4), head);
+        do Random.setSeed(100);
+        let apple = Apple.new(64, 64, 6);
+        return this;
+    }
+
+    method void dispose(){
+        do head.dispose();
+        do apple.dispose();
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    method void draw(){
+        do head.draw();
+        do apple.draw();
+        return;
+    }
+
+    method void erase(){
+        do head.erase();
+        do apple.erase();
+        return;
+    }
+
+    method boolean isEaten(int direction){
+        var Block head_block;
+        var int hx, hy;
+        let head_block = head.getCur();
+        let hx = head_block.getX();
+        let hy = head_block.getY();
+        if(direction = 1){let hy = hy - block_size;}
+        if(direction = 2){let hy = hy + block_size;}
+        if(direction = 3){let hx = hx - block_size;}
+        if(direction = 4){let hx = hx + block_size;}
+        if(apple.isCollision(hx, hy)){
+            return true;
+        }else{
+            return false;
+        }
+    }
+
+    method void generateNewApple(){
+        var int nx, ny;
+        var boolean can_exist;
+        var BlockList tmp_list;
+        var Block tmp_block;
+        let can_exist = false;
+        while(~can_exist){
+            let can_exist = true;
+            let nx = Random.randRange(31) * block_size;
+            let ny = Random.randRange(15) * block_size;
+            let tmp_list = head;
+            while(~(tmp_list = null)){
+                let tmp_block = tmp_list.getCur();
+                if(tmp_block.isCollision(nx, ny)){                        
+                    let can_exist = false;
+                }
+                let tmp_list = tmp_list.getRest();
+            }
+        }
+        let apple = Apple.new(nx, ny, 6);
+        return;
+    } 
+
+    method boolean isGameOver(int head_direction){
+        // the head can move along the current direction 
+        // Check before move
+        //var Block head_block;
+        var int cur_x, cur_y;
+        var Block tmp_block;
+        var BlockList tmp;
+        let tmp_block = head.getCur();
+        let cur_x = tmp_block.getX();
+        let cur_y = tmp_block.getY();
+        if(head_direction = 1){let cur_y = cur_y - block_size;}
+        if(head_direction = 2){let cur_y = cur_y + block_size;}
+        if(head_direction = 3){let cur_x = cur_x - block_size;}
+        if(head_direction = 4){let cur_x = cur_x + block_size;}
+        // Check overlap exiting block 
+
+        //var BlockList tmp;
+        let tmp = head; 
+        while(~(tmp = null)){
+            let tmp_block = tmp.getCur();
+            if(tmp_block.isCollision(cur_x, cur_y)){
+                let game_over = true;
+                return true;
+            }
+            let tmp = tmp.getRest();
+        }
+        // Check overlap with border
+        if(cur_y < 0){
+            let game_over = true;
+            return true;
+        }
+        if(cur_y > 255){
+            let game_over = true;
+            return true;
+        }
+        if(cur_x < 0){
+            let game_over = true;
+            return true;
+        }
+        if(cur_x > 511){
+            let game_over = true;
+            return true;
+        }
+        return false; 
+    }
+
+    method void updateGameFrame(int head_direction){
+        // check game status and erase existing frame 
+        var int prev_dir;
+        var int tmp_dir;
+        var BlockList tmp_list;
+        var BlockList tail_element;
+        var Block tmp_block;
+        var int apple_x, apple_y;
+
+        if(isGameOver(head_direction)){
+            return;
+        }
+        do head.erase();
+
+        // update direction of each block and move each block
+        //var BlockList tmp
+        if(isEaten(head_direction)){                
+            let head = BlockList.new(Block.new(apple.getX(), apple.getY(), block_size, head_direction), head);
+            do apple.erase();
+            do apple.dispose();
+            do generateNewApple();
+        }else{
+            let tmp_list = head;
+            let prev_dir = head_direction;
+            while(~(tmp_list=null)){
+                let tmp_block = tmp_list.getCur();
+                let tmp_dir = tmp_block.getDirection();
+                do tmp_block.setDirection(prev_dir);
+                do tmp_block.moveAlongDirection();
+                let prev_dir = tmp_dir;
+                if((tmp_list.getRest()) = null){
+                    let tail_element = tmp_list;
+                }
+                let tmp_list = tmp_list.getRest();
+            }
+        }
+        do draw();
+        return;
+    }
+
+    method void run(){
+        var char key;
+        var int direction;
+        var boolean exit;
+        var Block head_block;
+        var int time_count;
+        var int head_direction;
+        let time_count = 0;
+        let exit = false;
+
+        while((~exit) & (~game_over)){
+            while((key = 0)&(~game_over)){
+                // no input from keyboard
+                let key = Keyboard.keyPressed();
+                let time_count = time_count + 5;
+                if(time_count > frame_delay){
+                    let time_count = 0;
+                    let head_block = head.getCur();
+                    do updateGameFrame(head_block.getDirection());
+                }
+                do Sys.wait(5);
+            }
+            // get input from keyboard
+            let time_count = 0;
+            // q for quit
+            if(key = 81) {let exit = true;}
+            if(key = 131) {let direction=1;}
+            if(key = 133) {let direction=2;}
+            if(key = 130) {let direction=3;}
+            if(key = 132) {let direction=4;}
+            while(~(key=0)){
+                // wait for keyboard to be released 
+                let key = Keyboard.keyPressed();
+                do Sys.wait(5);
+            }
+            let head_block = head.getCur();
+            let head_direction = head_block.getDirection();
+            if((direction = 1)&(~(head_direction=2))){
+                do updateGameFrame(direction);
+            }
+            if((direction = 2)&(~(head_direction=1))){
+                do updateGameFrame(direction);
+            }
+            if((direction = 3)&(~(head_direction=4))){
+                do updateGameFrame(direction);
+            }
+            if((direction = 4)&(~(head_direction=3))){
+                do updateGameFrame(direction);
+            }
+        }
+        return;
+    }
+}

@@ -1,0 +1,99 @@
+class Block{
+    field int x, y;
+    field int size; 
+    // Direction of this block. 1: up, 2:down, 3:left, 4:right 
+    field int direction; 
+
+    constructor Block new(int ax, int ay, int asize, int dir){
+        let x = ax;
+        let y = ay;
+        let size = asize; 
+        let direction = dir;
+        return this;
+    }
+
+    method void dispose(){
+        do Memory.deAlloc(this);
+        return;
+    }
+
+    method void draw(){
+        do Screen.setColor(true);
+        do Screen.drawRectangle(x+1, y+1, x+size-1, y+size-1);
+        return;
+    }
+
+    method void erase(){
+        do Screen.setColor(false);
+        do Screen.drawRectangle(x+1, y+1, x+size-1, y+size-1);
+        return;
+    }
+
+    method int getDirection(){
+        return direction;
+    }
+
+    method void setDirection(int dir){
+        let direction = dir; 
+        return; 
+    }
+
+    method int getX(){
+        return x;
+    }
+
+    method int getY(){
+        return y;
+    }
+
+    method boolean isCollision(int ax, int ay){
+        // Check whether two block are overllaped
+        if(((x+size) < (ax+1)) | ((x+1) > (ax+size))){
+            return false;
+        } 
+        if(((y+size) < (ay+1)) | ((y+1) > (ay+size))){
+            return false;
+        } 
+        return true;
+    }
+
+    method void moveUp(){
+        // if(y>=size){
+        //     let y = y - size;
+        // }
+        let y = y - size;
+        return;
+    }
+
+    method void moveDown(){
+        // if((y+size+size) <= 256){
+        //     let y = y + size;
+        // }
+        let y = y + size;
+        return;
+    }
+
+    method void moveLeft(){
+        // if(x>=size){
+        //     let x = x - size;
+        // }
+        let x = x - size;
+        return;
+    }
+
+    method void moveRight(){
+        // if((x+size+size) <= 512){
+        //     let x = x + size;
+        // }
+        let x = x + size;
+        return;
+    }
+
+    method void moveAlongDirection(){
+        if(direction = 1){ do moveUp();}
+        if(direction = 2){ do moveDown(); }
+        if(direction = 3){ do moveLeft(); }
+        if(direction = 4){ do moveRight(); }
+        return;
+    }
+}
