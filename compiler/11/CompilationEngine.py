@@ -1,5 +1,12 @@
 import sys
-from JackTokenizer import JackTokenizer, TokenType
+from JackTokenizer import TokenType
+from SymbolTable import SymbolTable, Kind
+from VMWriter import Segment, Arithmetic
+
+
+class SyntaxError(Exception):
+    pass
+
 
 class CompilationEngine:
     __subroutine_keyword_list = ["constructor", "function", "method"]
@@ -8,12 +15,12 @@ class CompilationEngine:
     __keyword_constant_list = ["true", "false", "null", "this"]
     __op_list = ["+", "-", "*", "/", "&", "|", "<", ">", "="]
 
-    def __init__(self, filename, in_stream, out_stream):
+    def __init__(self, filename, tokenizer, vm_writer):
         self.filename = filename
-        self.input_stream = in_stream
-        self.output_stream = out_stream
-        self.tokenizer = JackTokenizer(self.input_stream)
-        self.prefix = ""
+        self.class_name = ""
+        self.writer = vm_writer
+        self.tokenizer = tokenizer
+        self.table = SymbolTable()
         if not self.tokenizer.hasMoreTokens():
             print("File is empty")
             return
@@ -22,18 +29,19 @@ class CompilationEngine:
         self.next_type = self.tokenizer.token_type
         self.current_token = ""
         self.current_type = 0
+        self.function_type = ""
+        self.return_type = ""
         return
 
     def compileClass(self):
         """
         First subroutine called for each file
         """
-        self.startNonTerminal("<class>\n")
-        # compile class ClassName {
         self.requireToken("class")
         self.requireIdentifier()
+        self.class_name = self.current_token
         self.requireToken("{")
-        # Compile the body of class until next_token = }
+        # Compile the class var
         while True:
             if self.next_token in self.__class_var_list:
                 self.compileClassVarDec()
@@ -42,23 +50,20 @@ class CompilationEngine:
             elif self.next_token == "}":
                 break
             else:
-                print("{}, line {}: expect class var or subroutine but receive {}".format(
-                    self.filename, self.tokenizer.line_number, self.next_token
-                ))
-                sys.exit()
-
+                raise SyntaxError("{}, line {}: expect class var or subroutine\
+                                  or end but receive {}".format(self.filename,
+                                  self.tokenizer.line_number, self.next_token))
+        # Compile the class subroutine
         while True:
             if self.next_token in self.__subroutine_keyword_list:
                 self.compileSubroutine()
             elif self.next_token == "}":
                 break
             else:
-                print("{}, line {}: expect subroutine but receive {}".format(
-                    self.filename, self.tokenizer.line_number, self.next_token
-                ))
-                sys.exit()
+                raise SyntaxError("{}, line {}: expect end or subroutine but \
+                                  receive {}".format(self.filename,
+                                  self.tokenizer.line_number, self.next_token))
         self.requireToken("}")
-        self.endNonTerminal("</class>\n")
         return
 
     def compileClassVarDec(self):
@@ -66,10 +71,17 @@ class CompilationEngine:
         Enter when next_token = static, field
         Return when current_token = ;
         """
-        self.startNonTerminal("<classVarDec>\n")
         self.requireInList(self.__class_var_list)
+        cv_kind = Kind.NONE
+        if self.current_token == "static":
+            cv_kind = Kind.STATIC
+        else:
+            cv_kind = Kind.FIELD
         self.requireType()
+        cv_type = self.current_token
         self.requireIdentifier()
+        cv_name = self.current_token
+        self.table.define(cv_name, cv_type, cv_kind)
         while True:
             if self.next_token == ";":
                 self.advanceToken()
@@ -77,28 +89,30 @@ class CompilationEngine:
             elif self.next_token == ",":
                 self.advanceToken()
                 self.requireIdentifier()
+                cv_name = self.current_token
+                self.table.define(cv_name, cv_type, cv_kind)
             else:
-                print("{}, line {}: expected , or ; but receive {}".format(
-                    self.filename, self.tokenizer.line_number, self.next_token
-                ))
-                sys.exit()
-        self.endNonTerminal("</classVarDec>\n")
+                raise SyntaxError("{}, line {}: expected , or ; but receive \
+                                  {}".format(self.filename,
+                                  self.tokenizer.line_number, self.next_token))
         return
 
     def compileSubroutine(self):
         """
         Enter when next_token = constructor, function, method
+        Use this pointer to access class scope variables
+        Need to determine the number of local variables (Kind.VAR)
         """
-        self.startNonTerminal("<subroutineDec>\n")
+        self.table.startSubroutine()
         self.requireInList(self.__subroutine_keyword_list)
+        self.function_type = self.current_token
         self.requireType()
+        self.return_type = self.current_token
         self.requireIdentifier()
+        function_name = self.current_token
         self.requireToken("(")
-        # Parameter list
-        self.compileParameterList() # Compile untill next_token = ")"
+        self.compileParameterList()
         self.requireToken(")")
-        # handle subroutine body
-        self.startNonTerminal("<subroutineBody>\n")
         self.requireToken("{")
         # body var declaration
         while True:
@@ -106,47 +120,56 @@ class CompilationEngine:
                 break
             self.compileVarDec()
         # body statements
-        self.compileStatements() # Compile until next_token = "}"
-        # body end
+        n_locals = self.table.varCount(Kind.VAR)
+        function_label = self.class_name + "." + function_name
+        self.writer.writeFunction(function_label, n_locals)
+        if self.function_type == "constructor":
+            # TODO: complete constructor logic here
+            pass
+        self.compileStatements()
         self.requireToken("}")
-        self.endNonTerminal("</subroutineBody>\n")
-        # subroutineDec end
-        self.endNonTerminal("</subroutineDec>\n")
         return
 
     def compileParameterList(self):
         """
         Enter at funciton declaration, current_token = (,
         Return when next_token = ")"
+        Record the ARG variables in the subroutine symbol table
         """
-        self.startNonTerminal("<parameterList>\n")
+        if self.function_type == "method":
+            self.table.define("this", self.class_name, Kind.ARG)
         while True:
             if self.next_token == ")":
                 break
             self.requireType()
+            arg_type = self.current_token
             self.requireIdentifier()
+            arg_name = self.current_token
+            self.table.define(arg_name, arg_type, Kind.ARG)
             if self.next_token == ",":
                 self.advanceToken()
                 continue
             elif self.next_token == ")":
                 break
             else:
-                print("{}, line {}: expected , or ; but receive {}".format(
-                    self.filename, self.tokenizer.line_number, self.next_token
-                ))
-                sys.exit()
-        self.endNonTerminal("</parameterList>\n")
+                raise SyntaxError("{}, line {}: expected , or ; but receive \
+                                  {}".format(self.filename,
+                                  self.tokenizer.line_number, self.next_token))
         return
 
     def compileVarDec(self):
         """
         Enter when next_token = var
         Return when current_token = ;
+        Record the local variable in the subtoutine symbol table
         """
-        self.startNonTerminal("<varDec>\n")
         self.requireToken("var")
+        kind = Kind.VAR
         self.requireType()
+        v_type = self.current_token
         self.requireIdentifier()
+        v_name = self.current_token
+        self.table.define(v_name, v_type, kind)
         while True:
             if self.next_token == ";":
                 self.advanceToken()
@@ -154,12 +177,12 @@ class CompilationEngine:
             elif self.next_token == ",":
                 self.advanceToken()
                 self.requireIdentifier()
+                v_name = self.current_token
+                self.table.define(v_name, v_type, kind)
             else:
-                print("{}, line {}: expected , or ; but receive {}".format(
-                    self.filename, self.tokenizer.line_number, self.next_token
-                ))
-                sys.exit()
-        self.endNonTerminal("</varDec>\n")
+                raise SyntaxError("{}, line {}: expected , or ; but receive \
+                                  {}".format(self.filename,
+                                  self.tokenizer.line_number, self.next_token))
         return
 
     def compileStatements(self):
@@ -167,7 +190,6 @@ class CompilationEngine:
         Enter when current_token = "{"
         Return when next_token = "}"
         """
-        self.startNonTerminal("<statements>\n")
         while True:
             if self.next_token == "let":
                 self.compileLet()
@@ -182,20 +204,20 @@ class CompilationEngine:
             elif self.next_token == "}":
                 break
             else:
-                print("{}, line {}: expect statement but receive {}".format(
-                    self.filename, self.tokenizer.line_number, self.next_token))
-                sys.exit()
-        self.endNonTerminal("</statements>\n")
+                raise SyntaxError("{}, line {}: expect statement but receive\
+                                  {}".format(self.filename,
+                                  self.tokenizer.line_number, self.next_token))
         return
 
     def compileDo(self):
         """
         Enter when next_token = do
         Return when current_token = ;
+        Just call the function
         """
-        self.startNonTerminal("<doStatement>\n")
         self.requireToken("do")
         self.requireIdentifier()
+        function_name = self.current_token
         if self.next_token == "(":
             self.advanceToken()
             self.compileExpressionList()
@@ -207,18 +229,16 @@ class CompilationEngine:
             self.compileExpressionList()
             self.requireToken(")")
         else:
-            print("{}, line {}: expect subroutine call".format(
-                self.filename, self.tokenizer.line_number))
+            raise SyntaxError("{}, line {}: expect subroutine\
+                              call".format(self.filename,
+                              self.tokenizer.line_number))
         self.requireToken(";")
-        self.endNonTerminal("</doStatement>\n")
-        return
 
     def compileLet(self):
         """
         Enter when next_token = let
         Return when current_token = ;
         """
-        self.startNonTerminal("<letStatement>\n")
         self.requireToken("let")
         self.requireIdentifier()
         if self.next_token == "[":
@@ -233,14 +253,12 @@ class CompilationEngine:
             print("{}, line {}: missing = ".format(
                 self.filename, self.tokenizer.line_number))
         self.requireToken(";")
-        self.endNonTerminal("</letStatement>\n")
         return
 
     def compileWhile(self):
         """
         Enter when next_token = while
         """
-        self.startNonTerminal("<whileStatement>\n")
         self.requireToken("while")
         self.requireToken("(")
         self.compileExpression()
@@ -248,7 +266,6 @@ class CompilationEngine:
         self.requireToken("{")
         self.compileStatements()
         self.requireToken("}")
-        self.endNonTerminal("</whileStatement>\n")
         return
 
     def compileReturn(self):
@@ -256,16 +273,13 @@ class CompilationEngine:
         Enter when next_token = return
         Return when current_token = ;
         """
-        self.startNonTerminal("<returnStatement>\n")
         self.requireToken("return")
         if self.next_token != ";":
             self.compileExpression()
         self.requireToken(";")
-        self.endNonTerminal("</returnStatement>\n")
         return
 
     def compileIf(self):
-        self.startNonTerminal("<ifStatement>\n")
         self.requireToken("if")
         self.requireToken("(")
         self.compileExpression()
@@ -278,11 +292,9 @@ class CompilationEngine:
             self.requireToken("{")
             self.compileStatements()
             self.requireToken("}")
-        self.endNonTerminal("</ifStatement>\n")
         return
 
     def compileExpression(self):
-        self.startNonTerminal("<expression>\n")
         while True:
             self.compileTerm()
             if self.next_token in self.__op_list:
@@ -290,11 +302,9 @@ class CompilationEngine:
                 continue
             else:
                 break
-        self.endNonTerminal("</expression>\n")
         return
 
     def compileTerm(self):
-        self.startNonTerminal("<term>\n")
         if self.next_token == "-" or self.next_token == "~":
             self.advanceToken()
             self.compileTerm()
@@ -328,57 +338,35 @@ class CompilationEngine:
         else:
             print("{}, line {}: term expected".format(
                 self.filename, self.tokenizer.line_number))
-        self.endNonTerminal("</term>\n")
         return
 
     def compileExpressionList(self):
-        self.startNonTerminal("<expressionList>\n")
         while True:
             if self.next_token == ")":
                 break
             self.compileExpression()
             if self.next_token == ",":
-                self.advanceToken();
+                self.advanceToken()
                 continue
             elif self.next_token == ")":
-                break;
+                break
             else:
                 print("{}, line {}: missing )".format(
                     self.filename, self.tokenizer.line_number))
                 sys.exit()
-        self.endNonTerminal("</expressionList>\n")
-        return
-
-    def increasePrefix(self):
-        self.prefix += "  "
-        return
-
-    def decreasePrefix(self):
-        self.prefix = self.prefix[0:len(self.prefix)-2]
-        return
-
-    def startNonTerminal(self, NTtype):
-        self.output_stream.writelines(self.prefix+NTtype)
-        self.increasePrefix()
-        return
-
-    def endNonTerminal(self, NTtype):
-        self.decreasePrefix()
-        self.output_stream.writelines(self.prefix+NTtype)
-        return
 
     def requireType(self):
         """
         Require next token to be a type
         if false print error message
         """
-        if self.next_type == TokenType.IDENTIFIER or \
-        self.next_token in self.__type_keyword_list:
+        if self.next_type == TokenType.IDENTIFIER or self.next_token in \
+                self.__type_keyword_list:
             self.advanceToken()
         else:
-            print("{}, line {}: A type name expected but receive {}".format( \
-                self.filename, self.tokenizer.line_number, self.next_token))
-        return
+            raise SyntaxError("{}, line {}: A type name expected but receive\
+                              {}".format(self.filename,
+                              self.tokenizer.line_number, self.next_token))
 
     def requireIdentifier(self):
         """
@@ -388,11 +376,10 @@ class CompilationEngine:
         if self.next_type == TokenType.IDENTIFIER:
             self.advanceToken()
         else:
-            print("{}, line {}: {} expected but receive {}".format( \
-                self.filaname, self.tokenizer.line_number, \
-                TokenType.IDENTIFIER, self.next_type))
-        return
-
+            raise SyntaxError("{}, line {}: {} expected but receive\
+                              {}".format(self.filaname,
+                              self.tokenizer.line_number, TokenType.IDENTIFIER,
+                              self.next_type))
 
     def requireToken(self, token):
         """
@@ -400,13 +387,12 @@ class CompilationEngine:
         if false print error message
         """
         if self.next_token != token:
-            print("{}, line {}: {} expected but receive {}".
-                  format(self.filaname, self.tokenizer.line_number,
-                         token, self.next_token))
-            sys.exit()
+            raise SyntaxError("{}, line {}: {} expected but receive\
+                              {}".format(self.filaname,
+                              self.tokenizer.line_number, token,
+                              self.next_token))
         else:
             self.advanceToken()
-        return
 
     def requireInList(self, token_list):
         """
@@ -414,13 +400,11 @@ class CompilationEngine:
         if false print error message
         """
         if self.next_token not in token_list:
-            print("{}, line {}: {} expected but receive {}".
-                  format(self.filename, self.tokenizer.line_number,
-                         token, self.next_token))
-            sys.exit()
+            raise SyntaxError("{}, line {}: expected but receive \
+                              {}".format(self.filename,
+                              self.tokenizer.line_number, self.next_token))
         else:
             self.advanceToken()
-        return
 
     def advanceToken(self):
         if self.tokenizer.hasMoreTokens():
@@ -434,32 +418,3 @@ class CompilationEngine:
             self.current_type = self.next_type
             self.next_token = ""
             self.next_type = TokenType.ERROR
-        self.writeTerminal()
-
-    def writeTerminal(self):
-        current_token = self.current_token
-        current_type = self.current_type
-        line = self.prefix
-        if current_type == TokenType.KEYWORD:
-            line += "<keyword> " + current_token + " </keyword>\n"
-        elif current_type == TokenType.SYMBOL:
-            line += "<symbol> "
-            if current_token == "<":
-                line += "&lt;"
-            elif current_token == ">":
-                line += "&gt;"
-            elif current_token == "\"":
-                line += "&quot;"
-            elif current_token == "&":
-                line += "&amp;"
-            else:
-                line += current_token
-            line += " </symbol>\n"
-        elif current_type == TokenType.INT_CONST:
-            line += "<integerConstant> " + current_token + " </integerConstant>\n"
-        elif current_type == TokenType.STRING_CONST:
-            line += "<stringConstant> " + current_token + " </stringConstant>\n"
-        elif current_type == TokenType.IDENTIFIER:
-            line += "<identifier> " + current_token + " </identifier>\n"
-        self.output_stream.writelines(line)
-        return
