@@ -8,6 +8,10 @@ class SyntaxError(Exception):
     pass
 
 
+class NameError(Exception):
+    pass
+
+
 class CompilationEngine:
     __subroutine_keyword_list = ["constructor", "function", "method"]
     __type_keyword_list = ["int", "char", "boolean", "void"]
@@ -21,16 +25,17 @@ class CompilationEngine:
         self.writer = vm_writer
         self.tokenizer = tokenizer
         self.table = SymbolTable()
+        self.label_index = 0
         if not self.tokenizer.hasMoreTokens():
             print("File is empty")
             return
         self.tokenizer.advance()
         self.next_token = self.tokenizer.current_token
         self.next_type = self.tokenizer.token_type
-        self.current_token = ""
-        self.current_type = 0
-        self.function_type = ""
-        self.return_type = ""
+        self.current_token = None
+        self.current_type = None
+        self.function_type = None
+        self.return_type = None
         return
 
     def compileClass(self):
@@ -114,7 +119,7 @@ class CompilationEngine:
         self.compileParameterList()
         self.requireToken(")")
         self.requireToken("{")
-        # body var declaration
+        # local var declaration
         while True:
             if self.next_token != "var":
                 break
@@ -124,8 +129,15 @@ class CompilationEngine:
         function_label = self.class_name + "." + function_name
         self.writer.writeFunction(function_label, n_locals)
         if self.function_type == "constructor":
-            # TODO: complete constructor logic here
-            pass
+            # create space to store the field variable
+            field_count = self.table.varCount(Kind.FIELD)
+            self.writer.writePush(Segment.CONST, field_count)
+            self.writer.writeCall("Memory.alloc", 1)
+            # Store the based address in this
+            self.writer.writePop(Segment.POINTER, 0)
+        if self.function_type == "method":
+            self.writer.writePush(Segment.ARG, 0)
+            self.writer.writePop(Segment.POINTER, 0)
         self.compileStatements()
         self.requireToken("}")
         return
@@ -218,21 +230,39 @@ class CompilationEngine:
         self.requireToken("do")
         self.requireIdentifier()
         function_name = self.current_token
+        argc = 0
         if self.next_token == "(":
-            self.advanceToken()
-            self.compileExpressionList()
+            # Call method in the same class
+            function_name = self.class_name + "." + function_name
+            # Push this to stack as the first argument
+            self.writer.writePush(Segment.POINTER, 0)
+            argc += 1
+            self.requireToken("(")
+            argc += self.compileExpressionList()
             self.requireToken(")")
         elif self.next_token == ".":
-            self.advanceToken()
+            prefix = function_name
+            self.requireToken(".")
             self.requireIdentifier()
+            function_name = prefix + "." + self.current_token
+            # If prefix is a variable, this is a method
+            # If prefix is not a variable, it should be a class name, and
+            # this subroutine should be a function or constructor
+            if self.table.nameExist(prefix):
+                v_type, v_kind, v_index = self.table.getEntry(prefix)
+                self.writer.writePush(v_kind, v_index)
+                function_name = v_type + "." + self.current_token
+                argc += 1
             self.requireToken("(")
-            self.compileExpressionList()
+            argc += self.compileExpressionList()
             self.requireToken(")")
         else:
             raise SyntaxError("{}, line {}: expect subroutine\
                               call".format(self.filename,
                               self.tokenizer.line_number))
         self.requireToken(";")
+        self.writer.writeCall(function_name, argc)
+        self.writer.writePop(Segment.TEMP, 0)
 
     def compileLet(self):
         """
@@ -241,31 +271,57 @@ class CompilationEngine:
         """
         self.requireToken("let")
         self.requireIdentifier()
+        v_name = self.current_token
+        if self.table.nameExist(v_name):
+            v_type, v_kind, v_index = self.table.getEntry(v_name)
+        else:
+            raise NameError("{}, line {} :{} does not exist in the current\
+                            scope".format(self.filaname,
+                            self.tokenizer.line_number, v_name))
+        handling_array = False
         if self.next_token == "[":
-            self.advanceToken()
+            # Handling array
+            handling_array = True
+            self.requireToken("[")
             self.compileExpression()
             self.requireToken("]")
-
+            self.writer.writePush(v_kind, v_index)
+            self.writer.writeArithmetic(Arithmetic.ADD)
+            self.writer.writePop(Segment.POINTER, 1)
         if self.next_token == "=":
             self.advanceToken()
             self.compileExpression()
         else:
-            print("{}, line {}: missing = ".format(
+            raise SyntaxError("{}, line {}: missing = ".format(
                 self.filename, self.tokenizer.line_number))
         self.requireToken(";")
+        if handling_array:
+            self.writer.writePop(Segment.THAT, 0)
+        else:
+            self.writer.writePop(v_kind, v_index)
         return
 
     def compileWhile(self):
         """
         Enter when next_token = while
         """
+        label1 = self.class_name + ".whileCond" + \
+            str(self.label_index)
+        label2 = self.class_name + ".whileFalse" + \
+            str(self.label_index)
+        self.label_index += 1
+        self.writer.writeLabel(label1)
         self.requireToken("while")
         self.requireToken("(")
         self.compileExpression()
         self.requireToken(")")
+        self.writer.writeArithmetic(Arithmetic.NOT)
+        self.writer.writeIfGoto(label2)
         self.requireToken("{")
         self.compileStatements()
         self.requireToken("}")
+        self.writer.writeGoto(label1)
+        self.writer.writeLabel(label2)
         return
 
     def compileReturn(self):
@@ -276,84 +332,177 @@ class CompilationEngine:
         self.requireToken("return")
         if self.next_token != ";":
             self.compileExpression()
+        else:
+            self.writer.writePush(Segment.CONST, 0)
         self.requireToken(";")
+        self.writer.writeReturn()
         return
 
     def compileIf(self):
+        label1 = self.class_name + ".ifFalse" + \
+            str(self.label_index)
+        label2 = self.class_name + ".ifEnd" + \
+            str(self.label_index)
+        self.label_index += 1
         self.requireToken("if")
         self.requireToken("(")
         self.compileExpression()
         self.requireToken(")")
+        self.writer.writeArithmetic(Arithmetic.NOT)
+        self.writer.writeIfGoto(label1)
         self.requireToken("{")
         self.compileStatements()
         self.requireToken("}")
+        self.writer.writeGoto(label2)
+        self.writer.writeLabel(label1)
         if self.next_token == "else":
             self.requireToken("else")
             self.requireToken("{")
             self.compileStatements()
             self.requireToken("}")
+        self.writer.writeLabel(label2)
         return
 
     def compileExpression(self):
+        prev_op = None
+        primitive_op = {
+            "+": Arithmetic.ADD,
+            "-": Arithmetic.SUB,
+            "=": Arithmetic.EQ,
+            ">": Arithmetic.GT,
+            "<": Arithmetic.LT,
+            "&": Arithmetic.AND,
+            "|": Arithmetic.OR
+        }
         while True:
             self.compileTerm()
+            if prev_op in primitive_op:
+                self.writer.writeArithmetic(primitive_op[prev_op])
+            if prev_op == "*":
+                self.writer.writeCall("Math.multiply", 2)
+            if prev_op == "/":
+                self.writer.writeCall("Math.divide", 2)
             if self.next_token in self.__op_list:
                 self.advanceToken()
+                prev_op = self.current_token
                 continue
             else:
                 break
         return
 
     def compileTerm(self):
-        if self.next_token == "-" or self.next_token == "~":
+        if self.next_token in ["-", "~"]:
+            token = self.next_token
             self.advanceToken()
             self.compileTerm()
+            if token == "-":
+                self.writer.writeArithmetic(Arithmetic.NEG)
+            else:
+                self.writer.writeArithmetic(Arithmetic.NOT)
         elif self.next_type == TokenType.INT_CONST:
             self.advanceToken()
+            self.writer.writePush(Segment.CONST, int(self.current_token))
         elif self.next_type == TokenType.STRING_CONST:
             self.advanceToken()
+            str_const = self.current_token
+            self.writer.writePush(Segment.CONST, len(str_const))
+            self.writer.writeCall("String.new", 1)
+            for c in str_const:
+                self.writer.writePush(Segment.CONST, ord(c))
+                self.writer.writeCall("String.appendChar", 2)
         elif self.next_type == TokenType.KEYWORD and \
             self.next_token in self.__keyword_constant_list:
             self.advanceToken()
+            if self.current_token in ["null", "false"]:
+                self.writer.writePush(Segment.CONST, 0)
+            elif self.current_token == "true":
+                self.writer.writePush(Segment.CONST, 1)
+                self.writer.writeArithmetic(Arithmetic.NEG)
+            else:
+                self.writer.writePush(Segment.POINTER, 0)
         elif self.next_token == "(":
-            self.advanceToken()
+            self.requireToken("(")
             self.compileExpression()
             self.requireToken(")")
         elif self.next_type == TokenType.IDENTIFIER:
             self.advanceToken()
+            v_name = self.current_token
             if self.next_token == "[":
+                # Push array element in stack
                 self.requireToken("[")
                 self.compileExpression()
                 self.requireToken("]")
+                if self.table.nameExist(v_name):
+                    v_type, v_kind, v_index = self.table.getEntry(v_name)
+                    self.writer.writePush(v_kind, v_index)
+                    self.writer.writeArithmetic(Arithmetic.ADD)
+                    self.writer.writePop(Segment.POINTER, 1)
+                    self.writer.writePush(Segment.THAT, 0)
+                else:
+                    raise NameError("{}, line {} :{} does not exist in the"\
+                                    "current scope".format(self.filaname,
+                                    self.tokenizer.line_number, v_name))
             elif self.next_token == "(":
-                self.advanceToken()
-                self.compileExpressionList()
-                self.requireToken(")")
-            elif self.next_token == ".":
-                self.advanceToken()
-                self.requireIdentifier()
+                # Call subroutine in the same class
+                argc = 0
+                function_name = self.class_name + "." + v_name
+                self.writer.writePush(Segment.POINTER, 0)
+                argc += 1
                 self.requireToken("(")
-                self.compileExpressionList()
+                argc += self.compileExpressionList()
                 self.requireToken(")")
+                self.writer.writeCall(function_name, argc)
+            elif self.next_token == ".":
+                # Call function or method
+                argc = 0
+                prefix = v_name
+                self.requireToken(".")
+                self.requireIdentifier()
+                function_name = prefix + "." + self.current_token
+                if self.table.nameExist(prefix):
+                    v_type, v_kind, v_index = self.table.getEntry(prefix)
+                    self.writer.writePush(v_kind, v_index)
+                    function_name = v_type + "." + self.current_token
+                    argc += 1
+                self.requireToken("(")
+                argc += self.compileExpressionList()
+                self.requireToken(")")
+                self.writer.writeCall(function_name, argc)
+            else:
+                # Just a variable
+                if self.table.nameExist(v_name):
+                    _, v_kind, v_index = self.table.getEntry(v_name)
+                    self.writer.writePush(v_kind, v_index)
+                else:
+                    raise NameError("{}, line {}: variable {} not"\
+                                "found".format(self.filename,
+                                self.tokenizer.line_number,
+                                self.current_token))
         else:
-            print("{}, line {}: term expected".format(
+            raise SyntaxError("{}, line {}: term expected".format(
                 self.filename, self.tokenizer.line_number))
         return
 
     def compileExpressionList(self):
+        """
+        Compile expression list
+        Return the number of expression
+        """
+        count = 0
         while True:
             if self.next_token == ")":
                 break
             self.compileExpression()
+            count += 1
             if self.next_token == ",":
                 self.advanceToken()
                 continue
             elif self.next_token == ")":
                 break
             else:
-                print("{}, line {}: missing )".format(
+                raise SyntaxError("{}, line {}: missing )".format(
                     self.filename, self.tokenizer.line_number))
-                sys.exit()
+        return count
 
     def requireType(self):
         """

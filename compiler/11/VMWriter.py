@@ -1,4 +1,5 @@
 from enum import Enum
+from SymbolTable import Kind
 
 class Segment(Enum):
     CONST = 0
@@ -23,14 +24,21 @@ class Arithmetic(Enum):
 
 class VMWriter:
     __segment_map_dict = {
-        Segment.CONST: "const",
-        Segment.ARG: "ARG",
+        Segment.CONST: "constant",
+        Segment.ARG: "argument",
         Segment.LOCAL: "local",
         Segment.STATIC: "static",
         Segment.THIS: "this",
         Segment.THAT: "that",
         Segment.POINTER: "pointer",
         Segment.TEMP: "temp"
+    }
+
+    __kind_map_dict = {
+        Kind.ARG: "argument",
+        Kind.FIELD: "this",
+        Kind.STATIC: "static",
+        Kind.VAR: "local"
     }
 
     __arithmetic_map_dict = {
@@ -42,7 +50,7 @@ class VMWriter:
         Arithmetic.LT: "lt",
         Arithmetic.AND: "and",
         Arithmetic.OR: "or",
-        Arithmetic.NOT: "nor"
+        Arithmetic.NOT: "not"
     }
 
     def __init__(self, out_stream):
@@ -50,12 +58,22 @@ class VMWriter:
         return
 
     def writePush(self, segment, index):
-        line = "push " + self.__segment_map_dict[segment] + " " + index + "\n"
+        if isinstance(segment, Segment):
+            line = "push " + self.__segment_map_dict[segment] +\
+                " " + str(index) + "\n"
+        elif isinstance(segment, Kind):
+            line = "push " + self.__kind_map_dict[segment] +\
+                " " + str(index) + "\n"
         self.out_stream.writelines(line)
         return
 
     def writePop(self, segment, index):
-        line = "pop" + self.__segment_map_dict[segment] + " " + index + "\n"
+        if isinstance(segment, Segment):
+            line = "pop " + self.__segment_map_dict[segment] +\
+                " " + str(index) + "\n"
+        elif isinstance(segment, Kind):
+            line = "pop " + self.__kind_map_dict[segment] +\
+                " " + str(index) + "\n"
         self.out_stream.writelines(line)
         return
 
@@ -80,12 +98,12 @@ class VMWriter:
         return
 
     def writeCall(self, name, argc):
-        line = "call " + name + " " + argc + "\n"
+        line = "call " + name + " " + str(argc) + "\n"
         self.out_stream.writelines(line)
         return
 
     def writeFunction(self, name, n_locals):
-        line = "function " + name + " " + n_locals + "\n"
+        line = "function " + name + " " + str(n_locals) + "\n"
         self.out_stream.writelines(line)
         return
 

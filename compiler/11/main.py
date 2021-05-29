@@ -1,6 +1,6 @@
 import os
 import sys
-from JackAnalyzer import JackAnalyzer
+from JackCompiler import JackCompiler
 
 
 def main(input_path):
@@ -12,15 +12,15 @@ def main(input_path):
         if os.path.splitext(input_path)[0] != "jack":
             print("Wrong file type, please enter jack file")
             return
-        analyzer = JackAnalyzer(input_path)
-        analyzer.process()
+        compiler = JackCompiler(input_path)
+        compiler.process()
 
     if os.path.isdir(input_path):
         for f in os.listdir(input_path):
             if os.path.splitext(f)[1] == ".jack":
                 filename = os.path.join(input_path, f)
-                analyzer = JackAnalyzer(filename)
-                analyzer.process()
+                compiler = JackCompiler(filename)
+                compiler.process()
 
 
 if __name__ == "__main__":

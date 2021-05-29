@@ -48,6 +48,20 @@ class SymbolTable:
             self.subroutine_table[name] = [s_type, kind, self.var_count[kind]]
             self.var_count[kind] += 1
 
+    def nameExist(self, name):
+        if name in self.subroutine_table:
+            return True
+        if name in self.class_table:
+            return True
+        return False
+
+    def getEntry(self, name):
+        if name in self.subroutine_table:
+            return self.subroutine_table[name]
+        if name in self.class_table:
+            return self.class_table[name]
+        return None
+
     def varCount(self, kind):
         return self.var_count[kind]
 
