@@ -287,18 +287,21 @@ class CompilationEngine:
             self.requireToken("]")
             self.writer.writePush(v_kind, v_index)
             self.writer.writeArithmetic(Arithmetic.ADD)
-            self.writer.writePop(Segment.POINTER, 1)
+            # self.writer.writePop(Segment.POINTER, 1)
         if self.next_token == "=":
             self.advanceToken()
             self.compileExpression()
         else:
             raise SyntaxError("{}, line {}: missing = ".format(
                 self.filename, self.tokenizer.line_number))
-        self.requireToken(";")
         if handling_array:
+            self.writer.writePop(Segment.TEMP, 0)
+            self.writer.writePop(Segment.POINTER, 1)
+            self.writer.writePush(Segment.TEMP, 0)
             self.writer.writePop(Segment.THAT, 0)
         else:
             self.writer.writePop(v_kind, v_index)
+        self.requireToken(";")
         return
 
     def compileWhile(self):
@@ -334,8 +337,8 @@ class CompilationEngine:
             self.compileExpression()
         else:
             self.writer.writePush(Segment.CONST, 0)
-        self.requireToken(";")
         self.writer.writeReturn()
+        self.requireToken(";")
         return
 
     def compileIf(self):
@@ -537,7 +540,7 @@ class CompilationEngine:
         """
         if self.next_token != token:
             raise SyntaxError("{}, line {}: {} expected but receive\
-                              {}".format(self.filaname,
+                              {}".format(self.filename,
                               self.tokenizer.line_number, token,
                               self.next_token))
         else:
